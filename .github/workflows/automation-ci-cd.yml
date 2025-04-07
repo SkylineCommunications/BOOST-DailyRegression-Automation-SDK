@@ -50,11 +50,11 @@ jobs:
           dotnet tool install -g Skyline.DataMiner.CICD.Tools.DataMinerDeploy
 
       - name: Create dmapp package
-        run: dataminer-package-create dmapp ${{ github.workspace }} --name "TEMP" --output ${{ github.workspace }} --version-override "${{ github.ref_name }}"
+        run: dataminer-package-create dmapp ${{ github.workspace }} --type automation --name "TEMP" --output ${{ github.workspace }} --version "${{ github.ref_name }}"
     
       - name: Upload package to Catalog
         id: upload
-        run: echo "id=$(dataminer-catalog-upload --path-to-artifact "${{ github.workspace }}/TEMP.dmprotocol" --dm-catalog-token "${{ secrets.DATAMINER_DEPLOY_KEY }}")" >> $GITHUB_OUTPUT
+        run: echo "id=$(dataminer-catalog-upload --path-to-artifact "${{ github.workspace }}/TEMP.dmapp" --dm-catalog-token "${{ secrets.DATAMINER_DEPLOY_KEY }}")" >> $GITHUB_OUTPUT
 
       - name: Deploy package from Catalog
         run: dataminer-package-deploy from-volatile --artifact-id "${{ steps.upload.outputs.id }}" --dm-system-token "${{ secrets.DATAMINER_DEPLOY_KEY }}"
