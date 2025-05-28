@@ -1,0 +1,51 @@
+name: RC DataMiner CICD Automation OIDC
+
+on:
+  push:
+    tags:
+      - "[0-9]+.[0-9]+.[0-9]+.[0-9]+"
+      - "[0-9]+.[0-9]+.[0-9]+.[0-9]+-**"
+
+  workflow_dispatch:
+
+jobs:
+
+  CI:
+    uses: SkylineCommunications/_ReusableWorkflows/.github/workflows/Automation Master Workflow.yml@RC
+    with:
+      sonarCloudProjectName: SkylineCommunications_BOOST-DailyRegression-Automation-SDK
+
+  CD-FromCatalog:
+    if: github.ref_type == 'tag'
+    runs-on: ubuntu-latest
+    needs: CI
+    steps:
+      - uses: actions/checkout@v4
+        
+      - name: Install .NET Tools
+        run: dotnet tool install -g Skyline.DataMiner.CICD.Tools.DataMinerDeploy --prerelease
+
+      - name: Deploy to DataMiner
+        run: dataminer-package-deploy from-catalog --catalog-id "66575129-0141-4e63-b6c3-9efa94fb473b" --catalog-version "${{ github.ref_name }}" --dm-catalog-token ${{ secrets.DATAMINER_TOKEN }} --agent-destination-id ${{ secrets.AGENT_DESTINATION_ID }}
+
+  CD-Volatile:
+    if: github.ref_type == 'tag'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install .NET Tools
+        run: |
+          dotnet tool install -g Skyline.DataMiner.CICD.Tools.Packager --prerelease
+          dotnet tool install -g Skyline.DataMiner.CICD.Tools.CatalogUpload --prerelease
+          dotnet tool install -g Skyline.DataMiner.CICD.Tools.DataMinerDeploy --prerelease
+
+      - name: Create dmapp package
+        run: dataminer-package-create dmapp ${{ github.workspace }} --type automation --name "TEMP" --output ${{ github.workspace }} --version "${{ github.ref_name }}"
+    
+      - name: Upload package to Catalog
+        id: upload
+        run: echo "id=$(dataminer-catalog-upload --path-to-artifact "${{ github.workspace }}/TEMP.dmapp" --dm-catalog-token "${{ secrets.DATAMINER_DEPLOY_KEY }}")" >> $GITHUB_OUTPUT
+
+      - name: Deploy package from Catalog
+        run: dataminer-package-deploy from-volatile --artifact-id "${{ steps.upload.outputs.id }}" --dm-system-token "${{ secrets.DATAMINER_DEPLOY_KEY }}"
